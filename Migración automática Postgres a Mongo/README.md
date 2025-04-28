@@ -1,50 +1,33 @@
-📦 Migrador de Datos de PostgreSQL a MongoDB
-Este proyecto es un script de migración que permite transferir datos de una base de datos PostgreSQL a una base de datos MongoDB, respetando el orden de dependencia entre tablas (gracias a un algoritmo de ordenación topológica).
+# Proyecto de Migración de Datos: PostgreSQL a MongoDB
 
-🚀 ¿Cómo funciona?
-El script realiza los siguientes pasos:
+## Descripción
 
-Conexión a PostgreSQL (base de datos relacional) y a MongoDB (base de datos NoSQL).
+Este proyecto permite migrar automáticamente los datos de todas las tablas de una base de datos PostgreSQL a una base de datos MongoDB.
+La migración mantiene el orden de las tablas según las dependencias de claves foráneas para evitar errores de integridad referencial.
 
-Detección de tablas y sus dependencias:
+El script se conecta a ambas bases de datos, calcula el orden de migración, transforma los datos (por ejemplo, fechas y decimales) para que sean compatibles con MongoDB, y los inserta como documentos en las respectivas colecciones.
 
-Identifica tablas independientes (sin llaves foráneas).
+## Tecnologías Utilizadas
 
-Calcula el orden de migración para respetar las relaciones padre-hijo.
+- Python 3.8+
+- Asyncio
+- AsyncPG (Cliente asíncrono para PostgreSQL)
+- PyMongo (Cliente para MongoDB)
 
-Migración de datos:
+## Configuración Inicial
 
-Extrae todos los registros de cada tabla.
+1. Instalar las dependencias necesarias:
 
-Convierte correctamente los tipos de datos (por ejemplo, fechas o decimales).
-
-Inserta los datos como documentos en colecciones de MongoDB.
-
-Cierre seguro de ambas conexiones.
-
-🛠️ Requisitos
-Python 3.8 o superior
-
-Bases de datos ya configuradas:
-
-PostgreSQL funcionando localmente.
-
-MongoDB Atlas (o instancia accesible vía red).
-
-Paquetes de Python:
-
-bash
-Copiar
-Editar
+```bash
 pip install asyncpg pymongo
-📋 Configuración
-Antes de ejecutar el script:
+```
 
-Actualiza los siguientes valores en el código:
+2. Configurar las credenciales de conexión:
 
-python
-Copiar
-Editar
+- **PostgreSQL:** Editar el diccionario `POSTGRES_CONFIG` con tus datos de conexión.
+- **MongoDB:** Modificar `MONGO_URI` con tu URI de conexión.
+
+```python
 POSTGRES_CONFIG = {
     'user': 'postgres',
     'password': '<tu_contra>',
@@ -52,40 +35,79 @@ POSTGRES_CONFIG = {
     'host': 'localhost',
     'port': 5432,
 }
-python
-Copiar
-Editar
-MONGO_URI = "mongodb+srv://<usuario>:<contraseña>@<cluster>.mongodb.net/?retryWrites=true&w=majority&appName=MyCluster"
-MONGO_DB = "MongoMigrado"
-🔥 Importante: No subas tus contraseñas reales a GitHub.
 
-🧠 Estructura del código
+MONGO_URI = "mongodb+srv://<usuario>:<contraseña>@<cluster>.mongodb.net/?retryWrites=true&w=majority"
+```
 
-Función	Descripción
-main()	Orquesta todo el proceso de conexión, migración y cierre.
-calcular_orden_tablas(pg_conn)	Calcula el orden correcto en que deben migrarse las tablas.
-migrar_tablas_a_mongo(pg_conn, mongo_client, orden_tablas)	Migra los datos tabla por tabla a MongoDB.
-convertir_a_datetime(valor)	Convierte fechas de tipo date a datetime.
-convertir_a_float(valor)	Convierte valores Decimal a float.
-conectar_postgres()	Establece conexión con PostgreSQL de forma asíncrona.
-conectar_mongodb()	Establece conexión con MongoDB.
-⚙️ ¿Cómo ejecutar?
-Abre tu terminal en el directorio del proyecto.
+## Ejecución del Script
 
-Ejecuta:
+Simplemente ejecuta el script principal:
 
-bash
-Copiar
-Editar
-python nombre_del_archivo.py
-Reemplaza nombre_del_archivo.py por el nombre real del archivo .py que contiene el script.
+```bash
+python migracion.py
+```
 
-📚 Conceptos importantes usados
-asyncio: Para manejar múltiples tareas de forma asíncrona y eficiente.
+Este script realizará:
 
-asyncpg: Librería para conexión y consultas asíncronas a PostgreSQL.
+1. Conexión a PostgreSQL.
+2. Conexión a MongoDB.
+3. Cálculo del orden correcto de migración de las tablas.
+4. Migración de datos de cada tabla a su colección correspondiente en MongoDB.
+5. Cierre seguro de ambas conexiones.
 
-pymongo: Cliente oficial para interactuar con MongoDB desde Python.
+## Lógica del Código
 
-Ordenación topológica: Algoritmo para determinar el orden de migración respetando relaciones padre-hijo entre tablas.
+### Conexión
+- `conectar_postgres()`: Establece conexión asíncrona con PostgreSQL.
+- `conectar_mongodb()`: Establece conexión con MongoDB y verifica con un `ping`.
+
+### Orden de Migración
+- `calcular_orden_tablas()`:
+  - Identifica tablas independientes (sin claves foráneas).
+  - Construye un grafo de dependencias.
+  - Aplica una ordenación topológica (tipo BFS) para determinar el orden seguro de migración.
+
+### Migración de Datos
+- `migrar_tablas_a_mongo()`:
+  - Obtiene las columnas de cada tabla.
+  - Extrae todos los datos.
+  - Convierte tipos especiales (fecha, decimal) compatibles con MongoDB.
+  - Inserta los datos en la colección correspondiente.
+
+### Utilidades de Conversión
+- `convertir_a_datetime()`: Transforma objetos `date` en `datetime`.
+- `convertir_a_float()`: Transforma objetos `Decimal` en `float`.
+
+## Ejemplo de Salida
+
+```plaintext
+✅ Conectado exitosamente a PostgreSQL.
+✅ Pinged your deployment. Connected to MongoDB!
+
+🎯 Ambas conexiones exitosas. Inicio de la migración.
+['usuarios', 'productos', 'ordenes']
+✅ Migrada la tabla 'usuarios' con 150 documentos.
+✅ Migrada la tabla 'productos' con 80 documentos.
+✅ Migrada la tabla 'ordenes' con 300 documentos.
+
+🔒 Conexión a PostgreSQL cerrada.
+🔒 Conexión a MongoDB cerrada.
+```
+
+## Consideraciones
+
+- Las tablas sin datos serán ignoradas de forma segura.
+- Las fechas y decimales son convertidos automáticamente para compatibilidad.
+- Si una tabla tiene errores durante la migración, el error se mostrará en la consola pero no detendrá el proceso general.
+
+## Futuras Mejoras
+
+- Implementar migración incremental o por lotes.
+- Manejar datos anidados o relaciones entre documentos.
+- Agregar configuración vía archivos `.env` o `config.json`.
+- Mejorar la tolerancia a errores y generar reportes de migración.
+
+---
+
+¡Feliz migración! 🚀
 
